@@ -1,46 +1,63 @@
-using System.Diagnostics;
-using System.IO.Compression;
-using ProtoBuf;
+using System.Text;
 
 namespace SharpFileDedup.Test;
 
 public class Tests
 {
     [Test]
-    public async Task SerializeDuplicateFiles()
+    public async Task SerializeAndDeserialize_ExpectSameOutput()
     {
-        var stringSize = 5000000;
-        var largeString = new string('*', stringSize);
-        var files = new Dictionary<string, string>();
-
-        for (int i = 0; i < 1000; i++)
-        {
-              files.Add($"foo{i}", largeString);  
-        }
-
-        //await Parallel.ForEachAsync(files,async (keyValuePair, token) =>
-        //{
-        //    await File.WriteAllTextAsync(keyValuePair.Key, keyValuePair.Value, token);    
-        //});
-
-
-        var watch = Stopwatch.StartNew();
-        using (var file = File.Create("deduped"))
-        {
-            await DedupedFileArchive.Serialize(file,files.Select(x => x.Key).ToArray());
-        }
-
-        Console.WriteLine(watch.Elapsed);
+        var sourcePath = Path.GetFullPath("foo");
+        var content = "abcde";
+        await File.WriteAllTextAsync(sourcePath, content);
         
-        using (var file = File.Create("deduped.gz"))
+        var entries = new[]
         {
-            using (var gzipStream = new GZipStream(file, CompressionMode.Compress))
-            {
-                await DedupedFileArchive.Serialize(gzipStream,files.Select(x => x.Key).ToArray());
-            }
-        }
+            new DedupedEntry("foobar", sourcePath)
+        };
 
-        var deserializedFileDeduped =  DedupedFileArchive.Deserialize(File.OpenRead("deduped"));
+        var memoryStream = new MemoryStream();
+        await DedupedFileArchive.Serialize(memoryStream, entries);
 
+        memoryStream.Seek(0, SeekOrigin.Begin);
+
+        var deserializedArchive = DedupedFileArchive.Deserialize(memoryStream);
+
+        Assert.That(deserializedArchive.Groups, Is.Not.Null);
+        Assert.Multiple(() =>
+        {
+            Assert.That(deserializedArchive.Groups.Count(), Is.EqualTo(1));
+            Assert.That(deserializedArchive.Groups.Single().Files, Is.EquivalentTo(entries.Select(x => x.Key)));
+            Assert.That(Encoding.Default.GetString(deserializedArchive.Groups.Single().Data), Is.EqualTo(content));
+        });
+    }
+
+    [Test]
+    public async Task SerializeAndDeserialize_DuplicateFiles_ExpectSameOutput()
+    {
+        var sourcePath = Path.GetFullPath("foo");
+        var content = "abcde";
+        await File.WriteAllTextAsync(sourcePath, content);
+        
+        var entries = new[]
+        {
+            new DedupedEntry("foobar1", sourcePath),
+            new DedupedEntry("foobar2", sourcePath)
+        };
+
+        var memoryStream = new MemoryStream();
+        await DedupedFileArchive.Serialize(memoryStream, entries);
+
+        memoryStream.Seek(0, SeekOrigin.Begin);
+
+        var deserializedArchive = DedupedFileArchive.Deserialize(memoryStream);
+
+        Assert.That(deserializedArchive.Groups, Is.Not.Null);
+        Assert.Multiple(() =>
+        {
+            Assert.That(deserializedArchive.Groups.Count(), Is.EqualTo(1));
+            Assert.That(deserializedArchive.Groups.Single().Files, Is.EquivalentTo(entries.Select(x => x.Key)));
+            Assert.That(Encoding.Default.GetString(deserializedArchive.Groups.Single().Data), Is.EqualTo(content));
+        });
     }
 }
