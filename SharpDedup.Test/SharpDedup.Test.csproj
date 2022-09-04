@@ -17,7 +17,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\SharpFileDedup\SharpFileDedup.csproj" />
+      <ProjectReference Include="..\SharpDedup\SharpDedup.csproj" />
     </ItemGroup>
 
 </Project>

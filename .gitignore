@@ -1,3 +1,4 @@
 ﻿bin/
 obj/
 SharpFileDedup.sln.DotSettings.user
+*.user
